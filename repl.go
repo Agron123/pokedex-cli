@@ -5,12 +5,21 @@ import (
 	"fmt"
 	"os"
 	"strings"
+
+	"github.com/Agron123/pokedexcli/internal/pokedexapi"
 )
+
+const locationAreaURL = "https://pokeapi.co/api/v2/location-area"
 
 type cliCommand struct {
 	name        string
 	description string
-	callback    func() error
+	callback    func(c *config) error
+}
+
+type config struct {
+	next     *string
+	previous *string
 }
 
 func getCommands() map[string]cliCommand {
@@ -25,6 +34,16 @@ func getCommands() map[string]cliCommand {
 			description: "Displays a help message",
 			callback:    commandHelp,
 		},
+		"map": {
+			name:        "map",
+			description: "Prints 20 locations",
+			callback:    commandMap,
+		},
+		"mapb": {
+			name:        "mapb",
+			description: "Prints 20 previous locations",
+			callback:    commandMapb,
+		},
 	}
 }
 
@@ -34,14 +53,14 @@ func cleanInput(text string) []string {
 	return words
 }
 
-func commandExit() error {
+func commandExit(c *config) error {
 	fmt.Println("Closing the Pokedex... Goodbye!")
 	os.Exit(0)
 	return nil
 }
 
-func commandHelp() error {
-	fmt.Println("Welcome to the Pokedex!\nUsage:\n")
+func commandHelp(c *config) error {
+	fmt.Println("Welcome to the Pokedex!\nUsage:")
 	commands := getCommands()
 
 	for _, value := range commands {
@@ -50,9 +69,60 @@ func commandHelp() error {
 	return nil
 }
 
+func commandMap(c *config) error {
+	var url string
+
+	if c.next == nil {
+		url = locationAreaURL
+	} else {
+		url = *c.next
+	}
+
+	page, err := pokedexapi.GetLocations(url)
+	if err != nil {
+		return err
+	}
+
+	for _, location := range page.Results {
+		fmt.Println(location.Name)
+	}
+
+	c.next = page.Next
+	c.previous = page.Previous
+
+	return nil
+}
+
+func commandMapb(c *config) error {
+	var url string
+
+	if c.previous == nil {
+		fmt.Println("You are on the first page")
+		return nil
+	}
+
+	url = *c.previous
+
+	page, err := pokedexapi.GetLocations(url)
+	if err != nil {
+		return err
+	}
+
+	for _, location := range page.Results {
+		fmt.Println(location.Name)
+	}
+
+	c.next = page.Next
+	c.previous = page.Previous
+
+	return nil
+}
+
 func StartRepl() {
 	reader := bufio.NewScanner(os.Stdin)
 	allowedCommands := getCommands()
+	cfg := config{}
+
 	for {
 		fmt.Print("Pokedex > ")
 		reader.Scan()
@@ -68,7 +138,7 @@ func StartRepl() {
 			fmt.Println("Unknown command")
 			continue
 		}
-		err := c.callback()
+		err := c.callback(&cfg)
 		if err != nil {
 			fmt.Println(err)
 		}
