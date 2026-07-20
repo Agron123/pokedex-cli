@@ -5,19 +5,14 @@ import (
 	"fmt"
 	"os"
 	"strings"
-	"time"
 
 	"github.com/Agron123/pokedexcli/internal/pokedexapi"
 )
 
-const locationAreaURL = "https://pokeapi.co/api/v2/location-area"
-const interval = 5 * time.Minute
-const timeout = 10 * time.Second
-
 type cliCommand struct {
 	name        string
 	description string
-	callback    func(c *config) error
+	callback    func(c *config, args []string) error
 }
 
 type config struct {
@@ -48,6 +43,11 @@ func getCommands() map[string]cliCommand {
 			description: "Prints 20 previous locations",
 			callback:    commandMapb,
 		},
+		"explore": {
+			name:        "explore",
+			description: "Prints pokemons in area",
+			callback:    commandExplore,
+		},
 	}
 }
 
@@ -57,13 +57,13 @@ func cleanInput(text string) []string {
 	return words
 }
 
-func commandExit(c *config) error {
+func commandExit(c *config, args []string) error {
 	fmt.Println("Closing the Pokedex... Goodbye!")
 	os.Exit(0)
 	return nil
 }
 
-func commandHelp(c *config) error {
+func commandHelp(c *config, args []string) error {
 	fmt.Println("Welcome to the Pokedex!\nUsage:")
 	commands := getCommands()
 
@@ -73,7 +73,7 @@ func commandHelp(c *config) error {
 	return nil
 }
 
-func commandMap(c *config) error {
+func commandMap(c *config, args []string) error {
 	var url string
 
 	if c.next == nil {
@@ -97,7 +97,7 @@ func commandMap(c *config) error {
 	return nil
 }
 
-func commandMapb(c *config) error {
+func commandMapb(c *config, args []string) error {
 	var url string
 
 	if c.previous == nil {
@@ -122,6 +122,27 @@ func commandMapb(c *config) error {
 	return nil
 }
 
+func commandExplore(c *config, args []string) error {
+	if len(args) == 0 {
+		fmt.Println("Usage: explore <location-area>")
+		return nil
+	}
+
+	areaName := args[0]
+
+	url := locationAreaURL + "/" + areaName
+	locationArea, err := c.apiClient.GetLocationArea(url)
+	if err != nil {
+		return err
+	}
+
+	for _, pokemonEncounter := range locationArea.PokemonEncounters {
+		fmt.Println(pokemonEncounter.Pokemon.Name)
+	}
+	return nil
+
+}
+
 func StartRepl() {
 	reader := bufio.NewScanner(os.Stdin)
 	allowedCommands := getCommands()
@@ -143,7 +164,7 @@ func StartRepl() {
 			fmt.Println("Unknown command")
 			continue
 		}
-		err := c.callback(&cfg)
+		err := c.callback(&cfg, words[1:])
 		if err != nil {
 			fmt.Println(err)
 		}
