@@ -1,8 +1,10 @@
 package pokedexapi
 
 import (
+	"bytes"
 	"encoding/json"
 	"fmt"
+	"io"
 	"net/http"
 )
 
@@ -17,15 +19,26 @@ type Page struct {
 	Results  []Location `json:"results"`
 }
 
-func GetLocations(url string) (Page, error) {
-	client := &http.Client{}
+func (c Client) GetLocations(url string) (Page, error) {
+
+	data, ok := c.cache.Get(url)
+	if ok {
+		page := Page{}
+		reader := bytes.NewReader(data)
+		decoder := json.NewDecoder(reader)
+		if err := decoder.Decode(&page); err != nil {
+			return Page{}, err
+		}
+
+		return page, nil
+	}
 
 	req, err := http.NewRequest("GET", url, nil)
 	if err != nil {
 		return Page{}, err
 	}
 
-	res, err := client.Do(req)
+	res, err := c.httpClient.Do(req)
 	if err != nil {
 		return Page{}, err
 	}
@@ -37,7 +50,14 @@ func GetLocations(url string) (Page, error) {
 	}
 
 	page := Page{}
-	decoder := json.NewDecoder(res.Body)
+	body, err := io.ReadAll(res.Body)
+	if err != nil {
+		return Page{}, err
+	}
+
+	c.cache.Add(url, body)
+	reader := bytes.NewReader(body)
+	decoder := json.NewDecoder(reader)
 	if err := decoder.Decode(&page); err != nil {
 		return Page{}, err
 	}

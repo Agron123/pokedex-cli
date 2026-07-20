@@ -5,11 +5,14 @@ import (
 	"fmt"
 	"os"
 	"strings"
+	"time"
 
 	"github.com/Agron123/pokedexcli/internal/pokedexapi"
 )
 
 const locationAreaURL = "https://pokeapi.co/api/v2/location-area"
+const interval = 5 * time.Minute
+const timeout = 10 * time.Second
 
 type cliCommand struct {
 	name        string
@@ -18,8 +21,9 @@ type cliCommand struct {
 }
 
 type config struct {
-	next     *string
-	previous *string
+	next      *string
+	previous  *string
+	apiClient pokedexapi.Client
 }
 
 func getCommands() map[string]cliCommand {
@@ -78,7 +82,7 @@ func commandMap(c *config) error {
 		url = *c.next
 	}
 
-	page, err := pokedexapi.GetLocations(url)
+	page, err := c.apiClient.GetLocations(url)
 	if err != nil {
 		return err
 	}
@@ -103,7 +107,7 @@ func commandMapb(c *config) error {
 
 	url = *c.previous
 
-	page, err := pokedexapi.GetLocations(url)
+	page, err := c.apiClient.GetLocations(url)
 	if err != nil {
 		return err
 	}
@@ -121,7 +125,8 @@ func commandMapb(c *config) error {
 func StartRepl() {
 	reader := bufio.NewScanner(os.Stdin)
 	allowedCommands := getCommands()
-	cfg := config{}
+	client := pokedexapi.NewClient(timeout, interval)
+	cfg := config{apiClient: client}
 
 	for {
 		fmt.Print("Pokedex > ")
