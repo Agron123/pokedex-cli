@@ -3,6 +3,7 @@ package main
 import (
 	"bufio"
 	"fmt"
+	"math/rand"
 	"os"
 	"strings"
 
@@ -19,6 +20,7 @@ type config struct {
 	next      *string
 	previous  *string
 	apiClient pokedexapi.Client
+	pokedex   map[string]pokedexapi.Pokemon
 }
 
 func getCommands() map[string]cliCommand {
@@ -47,6 +49,21 @@ func getCommands() map[string]cliCommand {
 			name:        "explore",
 			description: "Prints pokemons in area",
 			callback:    commandExplore,
+		},
+		"catch": {
+			name:        "catch",
+			description: "Catches a pokemon and adds it to the pokedex",
+			callback:    commandCatch,
+		},
+		"inspect": {
+			name:        "inspect",
+			description: "Prints pokemon stats",
+			callback:    commandInspect,
+		},
+		"pokedex": {
+			name:        "pokedex",
+			description: "Prints all pokemons in your pokedex",
+			callback:    commandPokedex,
 		},
 	}
 }
@@ -143,11 +160,76 @@ func commandExplore(c *config, args []string) error {
 
 }
 
+func commandCatch(c *config, args []string) error {
+	if len(args) == 0 {
+		fmt.Println("Usage: catch <pokemon-name>")
+		return nil
+	}
+
+	pokemonName := args[0]
+
+	fmt.Printf("Throwing a Pokeball at %s...\n", pokemonName)
+
+	url := pokemonBaseURL + "/" + pokemonName
+	pokemonInfo, err := c.apiClient.GetPokemonInfo(url)
+	if err != nil {
+		return err
+	}
+
+	randomInt := rand.Intn(100)
+	if randomInt > pokemonInfo.BaseExperience/5 {
+		c.pokedex[pokemonInfo.Name] = pokemonInfo
+		fmt.Printf("%s was caught!\n", pokemonInfo.Name)
+	} else {
+		fmt.Printf("%s escaped!\n", pokemonInfo.Name)
+	}
+	return nil
+}
+
+func commandInspect(c *config, args []string) error {
+	if len(args) == 0 {
+		fmt.Println("Usage: inspect <pokemon-name>")
+		return nil
+	}
+
+	pokemonName := args[0]
+	pokemon, exists := c.pokedex[pokemonName]
+	if !exists {
+		fmt.Printf("You have not caught %s\n", pokemonName)
+		return nil
+	}
+
+	fmt.Printf("Name: %s\n", pokemon.Name)
+	fmt.Printf("Height: %d\n", pokemon.Height)
+	fmt.Printf("Weight: %d\n", pokemon.Weight)
+	fmt.Println("Stats:")
+	for _, stat := range pokemon.Stats {
+		fmt.Printf("-%s: %d\n", stat.Stat.Name, stat.BaseStat)
+	}
+
+	fmt.Println("Types:")
+	for _, types := range pokemon.Types {
+		fmt.Printf("-%s\n", types.Types.Name)
+	}
+	return nil
+}
+
+func commandPokedex(c *config, args []string) error {
+	fmt.Println("Your pokedex:")
+
+	for key := range c.pokedex {
+		fmt.Printf("-%s\n", key)
+	}
+
+	return nil
+}
+
 func StartRepl() {
 	reader := bufio.NewScanner(os.Stdin)
 	allowedCommands := getCommands()
 	client := pokedexapi.NewClient(timeout, interval)
-	cfg := config{apiClient: client}
+	cfg := config{apiClient: client,
+		pokedex: make(map[string]pokedexapi.Pokemon)}
 
 	for {
 		fmt.Print("Pokedex > ")
