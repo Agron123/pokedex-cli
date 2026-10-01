@@ -7,7 +7,7 @@ import (
 	"os"
 	"strings"
 
-	"github.com/Agron123/pokedexcli/internal/pokedexapi"
+	"github.com/Agron123/pokedex-cli/internal/pokedexapi"
 )
 
 type cliCommand struct {
